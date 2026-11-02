@@ -1,0 +1,345 @@
+---
+title: "Summary_Files"
+format: html
+---
+
+# Creating summary files from large data sets
+
+## Preliminaries
+
+Let's start by making the Tidyverse available.
+
+```{r}
+
+# in case the Tidyverse is not installed on your computer, use the command below (just delete the hashtag)
+
+install.packages("tidyverse")
+
+# make the tidyverse available with the library function:
+library(tidyverse)  
+```
+
+## Read in Drinking Water Data
+
+Read in the data. If data includes zip code information, we need to make zip_code column "character" or zip codes starting with 0 are not read correctly
+
+```{r}
+
+#pb90_data <- read.csv("pb90_data_cleaned.csv", colClasses = c(zip_code = "character"))
+
+lead_historical <- read.csv("lead_samples_historical_cleaned.csv")
+```
+
+```{r}
+
+#this defines that data type in each column
+str(lead_historical)
+
+```
+
+Look at data - sort by ppb
+
+```{r}
+
+# Sort by 'ppb' in descending order
+sorted_lead_historical <- lead_historical |>
+  arrange(desc(ppb))
+
+# View the result
+sorted_lead_historical
+```
+
+## Create Data Summaries to Use for Merging or Analysis
+
+What years does the data cover? Create summaries based on "end_year" and "start_year"
+
+end_year
+
+```{r}
+
+end_year_summary <- lead_historical |>
+  group_by(end_year) |>
+  summarize(avg_lead_ppb=mean(ppb), sd_lead_ppb=sd(ppb), median_lead_ppb=median(ppb))
+
+end_year_summary
+```
+
+are there any trends? do a quick plot to find out
+
+look at averages
+
+```{r}
+
+end_year_plot_avg <- ggplot(end_year_summary, mapping=aes(x=end_year, y=avg_lead_ppb))+
+  geom_errorbar(aes(ymin = avg_lead_ppb - sd_lead_ppb, ymax = avg_lead_ppb + sd_lead_ppb))+
+  geom_point()
+
+end_year_plot_avg
+
+#ggsave("end_year_plot_avg.jpg", end_year_plot_avg)
+```
+
+look at medians
+
+```{r}
+
+end_year_plot_med <- ggplot(end_year_summary, mapping=aes(x=end_year, y=median_lead_ppb))+
+  geom_point()
+
+end_year_plot_med
+
+ggsave("end_year_plot_med.jpg", end_year_plot_med)
+```
+
+start_year
+
+```{r}
+
+start_year_summary <- lead_historical |>
+  group_by(start_year) |>
+  summarize(avg_lead_ppb=mean(ppb), sd_lead_ppb=sd(ppb), median_lead_ppb=median(ppb))
+
+start_year_summary
+```
+
+are there any trends? do a quick plot to find out
+
+look at averages
+
+```{r}
+
+start_year_plot_avg <- ggplot(start_year_summary, mapping=aes(x=start_year, y=avg_lead_ppb))+
+#  geom_errorbar(aes(ymin = avg_lead_ppb - sd_lead_ppb, ymax = avg_lead_ppb + sd_lead_ppb))+
+  geom_point()
+
+start_year_plot_avg
+
+ggsave("start_year_plot_avg.jpg", start_year_plot_avg)
+```
+
+look at medians
+
+```{r}
+
+start_year_plot_med <- ggplot(start_year_summary, mapping=aes(x=start_year, y=median_lead_ppb))+
+  geom_point()
+
+start_year_plot_med
+
+ggsave("start_year_plot_med.jpg", start_year_plot_med)
+```
+
+State Summary
+
+```{r}
+
+state_summary <- lead_historical |>
+  group_by(state_abb) |>
+  summarize(avg_lead_ppb=mean(ppb), sd_lead_ppb=sd(ppb), median_lead_ppb=median(ppb))
+
+state_summary
+
+write_csv(state_summary, "state_summary_historical.csv")
+
+```
+
+source of state_abb = NA
+
+```{r}
+
+na_states <- lead_historical |>
+  filter(is.na(state_abb))
+```
+
+quick look at data - averages
+
+```{r}
+
+state_avg_lead_plot <- ggplot(state_summary, mapping=aes(x=avg_lead_ppb, y=reorder(state_code, avg_lead_ppb)))+
+#  geom_errorbarh(aes(xmin = avg_lead_ppb - sd_lead_ppb, xmax = avg_lead_ppb + sd_lead_ppb))+
+#  xlim(-10,20)+
+  geom_point()
+
+state_avg_lead_plot
+
+ggsave("state_avg_lead_plot.jpg", state_avg_lead_plot)
+```
+
+quick look at data - medians
+
+```{r}
+
+state_med_lead_plot <- ggplot(state_summary, mapping=aes(x=median_lead_ppb, y=reorder(state_code, median_lead_ppb)))+
+#  xlim(-10,20)+
+  geom_point()
+
+state_med_lead_plot
+
+ggsave("state_med_lead_plot.jpg", state_med_lead_plot)
+```
+
+There's not that much variation by state (with the exception of a couple of outliers)
+
+Try group by/summarize for each zip code
+
+```{r}
+
+zip_summary <- pb90_data |>
+  group_by(zip_code) |>
+  summarize(avg_lead_ppb=mean(sample_measure_ppb), sd_lead_ppb=sd(sample_measure_ppb), median_lead_ppb=median(sample_measure_ppb), data_points = n())
+
+zip_summary
+```
+
+How many of the 21,518 zipcodes only have 1 data point (i.e., a standard deviation of NA)
+
+```{r}
+
+one_zip_code <- zip_summary |>
+  filter(data_points == 1)
+
+```
+
+There are 1246 data points where there is just one zip code. Should I eliminate these points?
+
+Create a new data set in which zip codes with only one data point are removed
+
+```{r}
+
+zip_summary_no_na <- zip_summary|>
+
+  #drop_na() to remove row if any column contains NA
+  
+drop_na(sd_lead_ppb) #to remove row if column contains NA
+
+#this removed 1246 data points
+
+```
+
+Save zip_summary and zip_summary_no_na as a csv files
+
+```{r}
+
+write_csv(zip_summary, "zip_summary.csv")
+
+
+write_csv(zip_summary_no_na, "zip_summary_no_na.csv")
+```
+
+some of the lead concentration averages and medians are quite large; sort data by average and median to see what's going on
+
+```{r}
+
+# Sort by 'avg_lead_ppb' in descending order
+sorted_zip_summary_avg <- zip_summary |>
+  arrange(desc(avg_lead_ppb))
+
+# View the result
+print(n=100, sorted_zip_summary_avg)
+```
+
+A lot of the zip codes with the highest lead levels are from zip codes with only 1 data point
+
+What happens if I do the same after removing zip codes where there is only 1 data point
+
+```{r}
+
+# Sort by 'avg_lead_ppb' in descending order
+sorted_zip_summary_no_na_avg <- zip_summary_no_na |>
+  arrange(desc(avg_lead_ppb))
+
+# View the result
+print(n=100, sorted_zip_summary_no_na_avg)
+```
+
+```{r}
+
+# Sort by 'median_lead_ppb' in descending order
+sorted_zip_summary_median <- zip_summary |>
+  arrange(desc(median_lead_ppb))
+
+# View the result
+print(n = 100, sorted_zip_summary_median)
+```
+
+repeat for zip_summary_no_na
+
+```{r}
+
+# Sort by 'median_lead_ppb' in descending order
+sorted_zip_summary_no_na_median <- zip_summary_no_na |>
+  arrange(desc(median_lead_ppb))
+
+# View the result
+print(n=100, sorted_zip_summary_no_na_median)
+
+
+```
+
+It might also be interesting to just focus on a given state and then merge with census data by county or zip code. Below is an example where I select California
+
+first filter pb90_data for state_code = CA
+
+```{r}
+
+pb90_data_ca <- pb90_data |>
+  filter(state_code=="CA")
+```
+
+group by county
+
+```{r}
+county_summary <- lead_historical |>
+  group_by(county_served, state_abb) |>
+  summarize(avg_lead_ppb=mean(ppb), sd_lead_ppb=sd(ppb), median_lead_ppb=median(ppb), data_points = n())
+
+county_summary
+```
+
+save county_summary
+
+```{r}
+
+write_csv(county_summary, "county_summary_historical.csv")
+
+```
+
+look at data - average sample measure
+
+```{r}
+
+ca_county_avg_lead_plot <- ggplot(ca_county_summary, mapping=aes(x=avg_lead_ppb, y=reorder(countyserved, avg_lead_ppb)))+
+#  geom_errorbarh(aes(xmin = avg_lead_ppb - sd_lead_ppb, xmax = avg_lead_ppb + sd_lead_ppb))+
+  xlim(0, 35)+
+  geom_point()
+
+ca_county_avg_lead_plot
+
+#ggsave("ca_county_avg_lead_plot", ca_county_avg_lead_plot)
+```
+
+look at data - median sample measure
+
+```{r}
+
+ca_county_med_lead_plot <- ggplot(ca_county_summary, mapping=aes(x=median_lead_ppb, y=reorder(countyserved, median_lead_ppb)))+
+#  xlim(0, 35)+
+  geom_point()
+
+ca_county_med_lead_plot
+
+#ggsave("ca_county_avg_lead_plot", ca_county_avg_lead_plot)
+```
+
+now group CA data by zip code - all the zip codes have more than 1 data point so there is no need to remove NA points
+
+```{r}
+
+ca_zip_summary <- pb90_data_ca |>
+  group_by(zip_code) |>
+  summarize(avg_lead_ppb=mean(sample_measure_ppb), sd_lead_ppb=sd(sample_measure_ppb), median_lead_ppb=median(sample_measure_ppb), data_points = n())
+
+ca_zip_summary
+```
+
+too many data points to look at a graph
